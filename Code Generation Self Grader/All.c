@@ -2151,6 +2151,27 @@ void FreeSymbolTable(SymbolTable *table)
     free(table); // 释放符号表自身
 }
 
+// 根据当前符号表中下标 r 获取符号的地址（index）
+int GetAddressByIndex(int r)
+{
+    if (current_table == NULL || r < 0 || r >= current_table->count) {
+        printf("Invalid symbol index: %d\n", r);
+        return -1;
+    }
+    return current_table->symbols[r].index;
+}
+
+// 根据符号名查找符号，并返回其地址（index）；未找到时返回 -1
+int GetAddress(const char *name)
+{
+    Symbol *sym = FindSymbol(name, true);
+    if (sym == NULL) {
+        printf("Symbol not found: %s\n", name);
+        return -1;
+    }
+    return sym->index;
+}
+
 #include "compiler.h"
 #include <dirent.h>
 #include <string.h>

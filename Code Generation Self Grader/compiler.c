@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
-FILE *file;
+FILE* vmFile;
 
 // 判断是否是 .jack 文件
 int isJackFile(const char *filename) {
@@ -11,9 +11,7 @@ int isJackFile(const char *filename) {
     return dot && strcmp(dot, ".jack") == 0;
 }
 
-// ---------- 以下是预扫描相关函数 ----------
-
-
+// --------------------- 预扫描 -----------------------
 // type → int | char | boolean | identifier
 ParserInfo preParseType()
 {
@@ -419,18 +417,90 @@ int PreloadLibraries(const char *dir_name) {
 // 对单个文件进行完整解析
 ParserInfo ParseFile(char *file_path) {
     ParserInfo pi;
+
     if (InitParser(file_path) != 1 || InitLexer(file_path) != 1) {
         printf("Failed to initialize Lexer or Parser for file: %s\n", file_path);
         pi.er = lexerErr;
         return pi;
     }
+    
+    // 根据当前文件名生成对应的 vm 文件名
+    char vmFileName[256];
+    strcpy(vmFileName, file_path);
+    char *dot = strrchr(vmFileName, '.');
+    if (dot != NULL) {
+        strcpy(dot, ".vm");
+    } else {
+        strcat(vmFileName, ".vm");
+    }
+    
+    // 打开 vm 文件用于写入生成的代码
+    vmFile = fopen(vmFileName, "w");
+    if (!vmFile) {
+        printf("Failed to open vm file: %s\n", vmFileName);
+        pi.er = lexerErr;
+        return pi;
+    }
+    
+    // 调用 parse() 进行语法解析与代码生成
     pi = Parse();
+    
+    // 清理工作：关闭解析器、词法器以及 vm 文件
     StopParser();
-	StopLexer();
+    StopLexer();
+    fclose(vmFile);
+    
     return pi;
 }
 
-// 修改 compile：先进行预扫描，再完整解析所有 .jack 文件
+// ---------------------        Utils：写入 vm 指令        --------------------------
+// 写入 push 指令：将指定段（segment）与下标（index）写入 vm 文件
+void writePush(const char *segment, int index) {
+    fprintf(vmFile, "push %s %d\n", segment, index);
+}
+
+// 写入 pop 指令
+void writePop(const char *segment, int index) {
+    fprintf(vmFile, "pop %s %d\n", segment, index);
+}
+
+// 写入算术运算指令
+// 可选的 command 包括 "add", "sub", "neg", "eq", "gt", "lt", "and", "or", "not"
+void writeArithmetic(const char *command) {
+    fprintf(vmFile, "%s\n", command);
+}
+
+// 写入 label 指令
+void writeLabel(const char *label) {
+    fprintf(vmFile, "label %s\n", label);
+}
+
+// 写入 goto 指令
+void writeGoto(const char *label) {
+    fprintf(vmFile, "goto %s\n", label);
+}
+
+// 写入 if-goto 指令
+void writeIf(const char *label) {
+    fprintf(vmFile, "if-goto %s\n", label);
+}
+
+// 写入 call 指令：调用函数 name，参数个数为 nArgs
+void writeCall(const char *name, int nArgs) {
+    fprintf(vmFile, "call %s %d\n", name, nArgs);
+}
+
+// 写入 function 指令：定义函数 name，局部变量个数为 nLocals
+void writeFunction(const char *name, int nLocals) {
+    fprintf(vmFile, "function %s %d\n", name, nLocals);
+}
+
+// 写入 return 指令
+void writeReturn() {
+    fprintf(vmFile, "return\n");
+}
+
+// 基本方法：进行完整解析
 ParserInfo compile(char *dir_name)
 {
     ParserInfo p;
@@ -482,6 +552,7 @@ ParserInfo compile(char *dir_name)
         p = ParseFile(file_path);
         if (p.er != none)
         {
+            // DEBUG
             printf("Error in file: %s\n", file_path);
             closedir(dir);
             return p;
@@ -490,7 +561,6 @@ ParserInfo compile(char *dir_name)
     closedir(dir);
     return p;
 }
-
 
 int InitCompiler() {
     // 初始化符号表

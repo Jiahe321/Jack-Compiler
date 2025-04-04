@@ -5,6 +5,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "symbols.h"
+#include "compiler.h"
 
 // you can declare prototypes of parser functions below
 extern FILE *file;
