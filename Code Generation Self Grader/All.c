@@ -1083,6 +1083,7 @@ ParserInfo ifStatement()
 		pi.tk = t;
 		return pi;
 	}
+
 	pi = expression();
 	if (pi.er != none)
 		return pi;
@@ -1097,6 +1098,16 @@ ParserInfo ifStatement()
 		pi.tk = t;
 		return pi;
 	}
+
+        // NEW 生成唯一标签
+        static int ifLabelCount = 0;
+        char labelFalse[64], labelEnd[64];
+        sprintf(labelFalse, "IF_FALSE_%d", ifLabelCount);
+        sprintf(labelEnd, "IF_END_%d", ifLabelCount);
+        ifLabelCount++;
+
+    // 根据条件生成跳转，如果条件为 false 跳转到 labelFalse
+    writeIf(labelFalse);
 
 	t = GetNextToken();
 	pi = lexerError(t);
@@ -1139,6 +1150,11 @@ ParserInfo ifStatement()
 		return pi;
 	if (t.tp == RESWORD && !strcmp(t.lx, "else"))
 	{
+        // NEW
+        writeGoto(labelEnd);
+        // 在 else 分支开始前，打上 false 标签
+        writeLabel(labelFalse);
+
 		GetNextToken();
 		pi = lexerError(t);
 		if (pi.er != none)
@@ -1169,6 +1185,8 @@ ParserInfo ifStatement()
 		pi = lexerError(t);
 		if (pi.er != none)
 			return pi;
+        // NEW
+        writeLabel(labelEnd);
 		if (t.tp != SYMBOL || strcmp(t.lx, "}"))
 		{
 			pi.er = closeBraceExpected;
@@ -1176,8 +1194,13 @@ ParserInfo ifStatement()
 			return pi;
 		}
 	}
+    else {
+                // NEW 没有 else 分支，则直接在 then 分支结束后打上 false 标签
+                writeLabel(labelFalse);
+    }
 	return pi;
 }
+
 // whileStatement → while ( expression ) { {statement} }
 ParserInfo whileStatement()
 {
@@ -1194,6 +1217,16 @@ ParserInfo whileStatement()
 		return pi;
 	}
 
+        // NEW 生成循环开始和结束标签
+        static int whileLabelCount = 0;
+        char labelExp[64], labelEnd[64];
+        sprintf(labelExp, "WHILE_EXP%d", whileLabelCount);
+        sprintf(labelEnd, "WHILE_END%d", whileLabelCount);
+        whileLabelCount++;
+    
+        // 生成循环入口标签
+        writeLabel(labelExp);
+
 	t = GetNextToken();
 	pi = lexerError(t);
 	if (pi.er != none)
@@ -1204,6 +1237,7 @@ ParserInfo whileStatement()
 		pi.tk = t;
 		return pi;
 	}
+
 	pi = expression();
 	if (pi.er != none)
 		return pi;
@@ -1218,6 +1252,9 @@ ParserInfo whileStatement()
 		pi.tk = t;
 		return pi;
 	}
+
+        // NEW 条件为 false 跳转到循环结束
+        writeIf(labelEnd);
 
 	t = GetNextToken();
 	pi = lexerError(t);
@@ -1253,6 +1290,10 @@ ParserInfo whileStatement()
 		pi.tk = t;
 		return pi;
 	}
+        // NEW 循环结束前无条件跳转回循环入口
+        writeGoto(labelExp);
+        // 循环结束标签
+        writeLabel(labelEnd);
 	return pi;
 }
 
@@ -1284,10 +1325,13 @@ ParserInfo doStatement()
 		pi.tk = t;
 		return pi;
 	}
+        // NEW do 语句不使用返回值，将返回值弹出到 temp 0
+        writePop("temp", 0);
 	return pi;
 }
 
 // subroutineCall → identifier [ . identifier ] ( expressionList )
+// TODO: 完成代码生成
 ParserInfo subroutineCall()
 {
     ParserInfo pi;
